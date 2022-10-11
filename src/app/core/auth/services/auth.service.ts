@@ -1,19 +1,28 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, map, Observable } from 'rxjs';
+import { BehaviorSubject, map } from 'rxjs';
 import { HttpService } from '../../services/http.service';
 import jwt_decode from 'jwt-decode';
 import { Router } from '@angular/router';
 import { User } from 'src/app/index/interfaces/user.interface';
+import { SessionStorageService } from 'ngx-webstorage';
 
 @Injectable({
   providedIn: 'root',
 })
 export class AuthService {
-  private subject: BehaviorSubject<any> = new BehaviorSubject<any>(null);
+  private subject: BehaviorSubject<any>;
 
   private refreshTokenTimeout: any = null;
 
-  constructor(private httpService: HttpService, private router: Router) {}
+  constructor(
+    private httpService: HttpService,
+    private router: Router,
+    private sessionStorageService: SessionStorageService
+  ) {
+    this.subject = new BehaviorSubject<any>(
+      this.sessionStorageService.retrieve('token')
+    );
+  }
 
   public get tokenValue(): any {
     return this.subject.value;
@@ -39,13 +48,8 @@ export class AuthService {
       );
   }
 
-  logout() {
-    this.stopRefreshTokenTimer();
-    this.subject.next(null);
-    this.router.navigate(['account']);
-  }
-
   private startRefreshTokenTimer(response: any) {
+    this.sessionStorageService.store('token', response.access_token);
     this.subject.next(response.access_token);
     const decode = this.decodeTokenJWT();
     const expires = new Date(decode.exp * 1000);
@@ -58,6 +62,13 @@ export class AuthService {
 
   private stopRefreshTokenTimer() {
     clearTimeout(this.refreshTokenTimeout);
+  }
+
+  logout() {
+    this.stopRefreshTokenTimer();
+    this.sessionStorageService.clear('token');
+    this.subject.next(null);
+    this.router.navigate(['account']);
   }
 
   private decodeTokenJWT(): any {
